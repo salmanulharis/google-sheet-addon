@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <style>
+        body {
+            font-family: 'Google Sans', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #ffffff;
+            color: #202124;
+        }
+        .container {
+            max-width: 100%;
+        }
+        .header {
+            text-align: center;
+            padding: 15px;
+            font-size: 18px;
+            font-weight: 500;
+            border-bottom: 1px solid #e0e0e0;
+            margin-bottom: 20px;
+        }
+        .button {
+            background-color: #f1f3f4;
+            border: 1px solid #dadce0;
+            color: #202124;
+            padding: 10px 15px;
+            text-align: center;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            width: 100%;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .button:hover {
+            background-color: #e8eaed;
+            border-color: #c6c6c6;
+        }
+        .button-secondary {
+            background-color: #f8f9fa;
+            border-color: #dadce0;
+            color: #5f6368;
+        }
+        .button-secondary:hover {
+            background-color: #f1f3f4;
+            border-color: #c6c6c6;
+        }
+        .button-success {
+            background-color: #e6f4ea;
+            border-color: #c6ecc6;
+            color: #188038;
+        }
+        .button-success:hover {
+            background-color: #d4edda;
+            border-color: #a8d5a2;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+            font-size: 13px;
+        }
+        .status.success {
+            background-color: #e6f4ea;
+            color: #188038;
+            border: 1px solid #c6ecc6;
+        }
+        .status.error {
+            background-color: #fce8e6;
+            color: #d93025;
+            border: 1px solid #f5c6cb;
+        }
+        .config-status {
+            background-color: #fff7e6;
+            color: #d97706;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border: 1px solid #ffecb3;
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #ffffff;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        .section-title {
+            font-weight: 500;
+            margin-bottom: 10px;
+            color: #202124;
+            font-size: 14px;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 5px;
+        }
+        p {
+            font-size: 13px;
+            margin: 5px 0 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">WordPress Products</div>
+        
+        <div id="configStatus" class="config-status" style="display: none;">
+            Please configure your WordPress API URL in Settings.
+        </div>
+        
+        <div class="section">
+            <div class="section-title">Fetch Products</div>
+            <p>Get all products from your WordPress site:</p>
+            <button class="button button-success" onclick="fetchProducts()">Fetch Products</button>
+        </div>
+        
+        <div class="section">
+            <div class="section-title">Update Products</div>
+            <p>Update products back to WordPress:</p>
+            <button class="button" onclick="updateSelectedProducts()">Update Selected Products</button>
+            <button class="button button-secondary" onclick="updateAllProducts()">Update All Products</button>
+            <p><small>Select rows to update specific products, or update all products in the sheet.</small></p>
+        </div>
+        
+        <div class="section">
+            <div class="section-title">Settings</div>
+            <button class="button button-secondary" onclick="openSettings()">Open Settings</button>
+            <button class="button button-secondary" onclick="checkConnection()">Test Connection</button>
+        </div>
+        
+        <div id="status" class="status"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            checkConfig();
+        });
+        
+        function checkConfig() {
+            google.script.run.withSuccessHandler(function(config) {
+                if (!config.isConfigured) {
+                    document.getElementById('configStatus').style.display = 'block';
+                }
+            }).getConfig();
+        }
+        
+        function fetchProducts() {
+            showStatus('Fetching products...', 'info');
+            google.script.run.withSuccessHandler(function(result) {
+                showStatus(result.success ? 'Success: ' + result.message : 'Error: ' + result.message, result.success ? 'success' : 'error');
+            }).withFailureHandler(function(error) {
+                showStatus('Error: ' + error, 'error');
+            }).fetchProducts();
+        }
+        
+        function updateSelectedProducts() {
+            showStatus('Updating selected products...', 'info');
+            google.script.run.withSuccessHandler(function(result) {
+                showStatus(result.success ? 'Success: ' + result.message : 'Error: ' + result.message, result.success ? 'success' : 'error');
+            }).withFailureHandler(function(error) {
+                showStatus('Error: ' + error, 'error');
+            }).updateSelectedProducts();
+        }
+        
+        function updateAllProducts() {
+            showStatus('Updating all products...', 'info');
+            google.script.run.withSuccessHandler(function(result) {
+                showStatus(result.success ? 'Success: ' + result.message : 'Error: ' + result.message, result.success ? 'success' : 'error');
+            }).withFailureHandler(function(error) {
+                showStatus('Error: ' + error, 'error');
+            }).updateAllProducts();
+        }
+        
+        function openSettings() {
+            google.script.run.showSettings();
+        }
+        
+        function checkConnection() {
+            showStatus('Testing connection...', 'info');
+            google.script.run.withSuccessHandler(function(result) {
+                showStatus(result.success ? 'Connection successful!' : 'Connection failed: ' + result.message, result.success ? 'success' : 'error');
+            }).withFailureHandler(function(error) {
+                showStatus('Connection failed: ' + error, 'error');
+            }).fetchProducts();
+        }
+        
+        function showStatus(message, type) {
+            var statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+            statusDiv.style.display = 'block';
+            if (type === 'success') {
+                setTimeout(() => statusDiv.style.display = 'none', 5000);
+            }
+        }
+    </script>
+</body>
+</html>

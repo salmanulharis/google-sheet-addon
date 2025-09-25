@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 100%;
+        }
+        .header {
+            background: #1a73e8;
+            color: white;
+            padding: 15px;
+            margin: -20px -20px 20px -20px;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .button {
+            background-color: #1a73e8;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            width: 100%;
+        }
+        .button:hover {
+            background-color: #0d62d9;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .instructions {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h3>API Settings</h3>
+        </div>
+        
+        <div class="form-group">
+            <label for="baseUrl">WordPress Site URL:</label>
+            <input type="text" id="baseUrl" placeholder="https://yoursite.com">
+            <small>Enter the full URL of your WordPress site (without trailing slash)</small>
+        </div>
+        
+        <button class="button" onclick="saveSettings()">Save Settings</button>
+        <button class="button" onclick="testConnection()">Test Connection</button>
+        <button class="button" onclick="google.script.host.close()">Close</button>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="instructions">
+            <strong>Instructions:</strong><br>
+            1. Enter your WordPress site URL (e.g., https://jamz-demo.acowebs.com)<br>
+            2. Make sure the Sheets API plugin is installed and activated on your WordPress site<br>
+            3. Test the connection to verify everything is working<br>
+            <br>
+            <strong>Example URL:</strong> https://jamz-demo.acowebs.com
+        </div>
+    </div>
+
+    <script>
+        // Load current settings when dialog opens
+        document.addEventListener('DOMContentLoaded', function() {
+            google.script.run.withSuccessHandler(function(config) {
+                document.getElementById('baseUrl').value = config.baseUrl || '';
+            }).getConfig();
+        });
+        
+        function saveSettings() {
+            var baseUrl = document.getElementById('baseUrl').value.trim();
+            
+            if (!baseUrl) {
+                showStatus('Please enter your WordPress site URL', 'error');
+                return;
+            }
+            
+            // Basic URL validation
+            if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+                showStatus('Please enter a valid URL starting with http:// or https://', 'error');
+                return;
+            }
+            
+            google.script.run.withSuccessHandler(function(result) {
+                showStatus('Settings saved successfully!', 'success');
+            }).withFailureHandler(function(error) {
+                showStatus('Error saving settings: ' + error, 'error');
+            }).saveConfig(baseUrl);
+        }
+        
+        function testConnection() {
+            var baseUrl = document.getElementById('baseUrl').value.trim();
+            
+            if (!baseUrl) {
+                showStatus('Please enter your WordPress site URL first', 'error');
+                return;
+            }
+            
+            // Save config first, then test
+            google.script.run.withSuccessHandler(function(saveResult) {
+                showStatus('Testing connection...', 'info');
+                
+                google.script.run.withSuccessHandler(function(testResult) {
+                    if (testResult.success) {
+                        showStatus('Connection successful! Found ' + testResult.count + ' products.', 'success');
+                    } else {
+                        showStatus('Connection failed: ' + testResult.message, 'error');
+                    }
+                }).withFailureHandler(function(error) {
+                    showStatus('Connection failed: ' + error, 'error');
+                }).fetchProducts();
+                
+            }).withFailureHandler(function(error) {
+                showStatus('Error saving settings: ' + error, 'error');
+            }).saveConfig(baseUrl);
+        }
+        
+        function showStatus(message, type) {
+            var statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+            statusDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "timeZone": "America/New_York",
+  "dependencies": {
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.container.ui"
+  ],
+  "addOns": {
+    "common": {
+      "name": "WordPress Products Manager",
+      "logoUrl": "https://www.gstatic.com/images/icons/material/system/1x/inventory_black_24dp.png",
+      "layoutProperties": {
+        "primaryColor": "#1a73e8"
+      },
+      "useLocaleFromApp": true
+    },
+    "sheets": {
+      "homepageTrigger": {
+        "runFunction": "onInstall"
+      }
+    }
+  }
+}
