@@ -116,7 +116,9 @@ function fetchProducts() {
       {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "GoogleAppsScript" 
         },
         muteHttpExceptions: true
       }
@@ -387,7 +389,9 @@ function updateProductsToWordPress(productRows) {
       {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "GoogleAppsScript"
         },
         payload: JSON.stringify(payload),
         muteHttpExceptions: true
