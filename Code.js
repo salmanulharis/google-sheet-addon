@@ -360,12 +360,10 @@ function getSelectedProductRows(range, sheet) {
   for (var i = range.getRow(); i <= range.getLastRow(); i++) {
     if (i > 1 && i <= data.length) { // Skip header row
       var rowData = data[i-1];
-      if (rowData[0]) { // Check if ID exists
-        selectedRows.push({
-          rowIndex: i,
-          data: rowData
-        });
-      }
+      selectedRows.push({
+        rowIndex: i,
+        data: rowData
+      });
     }
   }
   
@@ -381,12 +379,10 @@ function getAllProductRows(sheet) {
   
   for (var i = 1; i < data.length; i++) {
     var rowData = data[i];
-    if (rowData[0]) { // Check if ID exists
-      allRows.push({
-        rowIndex: i + 1,
-        data: rowData
-      });
-    }
+    allRows.push({
+      rowIndex: i + 1,
+      data: rowData
+    });
   }
   
   return allRows;
