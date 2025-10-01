@@ -87,6 +87,12 @@
             <small>Enter the full URL of your WordPress site (without trailing slash)</small>
         </div>
         
+        <div class="form-group">
+            <label for="secretKey">Secret Key:</label>
+            <input type="password" id="secretKey" placeholder="Your Secret Key">
+            <small>Enter the secret key configured in your WordPress Sheets API plugin</small>
+        </div>
+        
         <button class="button" onclick="saveSettings()">Save Settings</button>
         <button class="button" onclick="testConnection()">Test Connection</button>
         <button class="button" onclick="google.script.host.close()">Close</button>
@@ -96,10 +102,12 @@
         <div class="instructions">
             <strong>Instructions:</strong><br>
             1. Enter your WordPress site URL (e.g., https://jamz-demo.acowebs.com)<br>
-            2. Make sure the Sheets API plugin is installed and activated on your WordPress site<br>
-            3. Test the connection to verify everything is working<br>
+            2. Enter the secret key configured in your WordPress Sheets API plugin<br>
+            3. Make sure the Sheets API plugin is installed and activated on your WordPress site<br>
+            4. Test the connection to verify everything is working<br>
             <br>
-            <strong>Example URL:</strong> https://jamz-demo.acowebs.com
+            <strong>Example URL:</strong> https://jamz-demo.acowebs.com<br>
+            <strong>Note:</strong> Both URL and secret key are required for secure authentication
         </div>
     </div>
 
@@ -108,35 +116,46 @@
         document.addEventListener('DOMContentLoaded', function() {
             google.script.run.withSuccessHandler(function(config) {
                 document.getElementById('baseUrl').value = config.baseUrl || '';
+                document.getElementById('secretKey').value = config.secretKey || '';
             }).getConfig();
         });
         
         function saveSettings() {
             var baseUrl = document.getElementById('baseUrl').value.trim();
+            var secretKey = document.getElementById('secretKey').value.trim();
             
             if (!baseUrl) {
                 showStatus('Please enter your WordPress site URL', 'error');
                 return;
             }
-            
+            if (!secretKey) {
+                showStatus('Please enter your Secret Key', 'error');
+                return;
+            }
             // Basic URL validation
             if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
                 showStatus('Please enter a valid URL starting with http:// or https://', 'error');
                 return;
             }
-            
+
             google.script.run.withSuccessHandler(function(result) {
                 showStatus('Settings saved successfully!', 'success');
             }).withFailureHandler(function(error) {
                 showStatus('Error saving settings: ' + error, 'error');
-            }).saveConfig(baseUrl);
+            }).saveConfig(baseUrl, secretKey);
         }
         
         function testConnection() {
             var baseUrl = document.getElementById('baseUrl').value.trim();
+            var secretKey = document.getElementById('secretKey').value.trim();
             
             if (!baseUrl) {
                 showStatus('Please enter your WordPress site URL first', 'error');
+                return;
+            }
+            
+            if (!secretKey) {
+                showStatus('Please enter your Secret Key first', 'error');
                 return;
             }
             
@@ -156,7 +175,7 @@
                 
             }).withFailureHandler(function(error) {
                 showStatus('Error saving settings: ' + error, 'error');
-            }).saveConfig(baseUrl);
+            }).saveConfig(baseUrl, secretKey);
         }
         
         function showStatus(message, type) {

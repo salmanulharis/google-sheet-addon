@@ -13,6 +13,12 @@ var WP_API_CONFIG = {
   }
 };
 
+// Encryption configuration
+var ENCRYPTION_CONFIG = {
+  secretKey: '', // Will be set by user
+  algorithm: 'XOR' // Simple but effective
+};
+
 // Sheet configuration
 var SHEET_CONFIG = {
   sheetName: 'Products',
@@ -72,9 +78,13 @@ function showSettings() {
 /**
  * Saves API configuration
  */
-function saveConfig(baseUrl) {
+function saveConfig(baseUrl, secretKey) {
   var userProperties = PropertiesService.getUserProperties();
   userProperties.setProperty('WP_BASE_URL', baseUrl);
+  if (secretKey) {
+    userProperties.setProperty('WP_SECRET_KEY', secretKey);
+    ENCRYPTION_CONFIG.secretKey = secretKey;
+  }
   WP_API_CONFIG.baseUrl = baseUrl;
   return true;
 }
@@ -85,10 +95,29 @@ function saveConfig(baseUrl) {
 function getConfig() {
   var userProperties = PropertiesService.getUserProperties();
   var baseUrl = userProperties.getProperty('WP_BASE_URL');
+  var secretKey = userProperties.getProperty('WP_SECRET_KEY');
+  
+  // Update the global config
+  if (secretKey) {
+    ENCRYPTION_CONFIG.secretKey = secretKey;
+  }
+  
   return {
     baseUrl: baseUrl || '',
-    isConfigured: !!baseUrl
+    secretKey: secretKey || '',
+    isConfigured: !!baseUrl && !!secretKey
   };
+}
+
+/**
+ * Validates that the secret key is configured
+ */
+function validateSecretKey() {
+  var config = getConfig();
+  if (!config.secretKey) {
+    throw new Error('Secret key is not configured. Please set up your secret key in Settings before using this feature.');
+  }
+  return true;
 }
 
 /**
@@ -98,8 +127,14 @@ function fetchProducts() {
   try {
     var config = getConfig();
     if (!config.isConfigured) {
-      throw new Error('Please configure the WordPress API URL first in Settings.');
+      throw new Error('Please configure the WordPress API URL and secret key first in Settings.');
     }
+    
+    // Validate secret key is present
+    validateSecretKey();
+    
+    // Validate secret key is present
+    validateSecretKey();
     
     // Use the currently active sheet instead of creating a specific "Products" sheet
     var sheet = SpreadsheetApp.getActiveSheet();
@@ -108,6 +143,9 @@ function fetchProducts() {
     setupSheetHeaders(sheet);
     
     var existingData = getExistingProductData(sheet);
+    
+    // Generate encrypted sheet token for secure authentication
+    var sheetToken = generateSheetToken();
     
     var fetchUrl = config.baseUrl + '/wp-json/' + WP_API_CONFIG.namespace + WP_API_CONFIG.endpoints.getProducts;
     
@@ -118,7 +156,9 @@ function fetchProducts() {
         headers: {
           'Content-Type': 'application/json',
           "ngrok-skip-browser-warning": "true",
-          "User-Agent": "GoogleAppsScript" 
+          "User-Agent": "GoogleAppsScript",
+          "X-Sheet-Token": sheetToken,
+          "Authorization": "Bearer " + sheetToken
         },
         muteHttpExceptions: true
       }
@@ -362,8 +402,11 @@ function updateProductsToWordPress(productRows) {
   try {
     var config = getConfig();
     if (!config.isConfigured) {
-      throw new Error('Please configure the WordPress API URL first in Settings.');
+      throw new Error('Please configure the WordPress API URL and secret key first in Settings.');
     }
+    
+    // Validate secret key is present
+    validateSecretKey();
     
     var productsData = productRows.map(function(row) {
       return {
@@ -380,6 +423,9 @@ function updateProductsToWordPress(productRows) {
       };
     });
     
+    // Generate encrypted sheet token for secure authentication
+    var sheetToken = generateSheetToken();
+    
     var payload = {
       products: productsData
     };
@@ -391,7 +437,9 @@ function updateProductsToWordPress(productRows) {
         headers: {
           'Content-Type': 'application/json',
           "ngrok-skip-browser-warning": "true",
-          "User-Agent": "GoogleAppsScript"
+          "User-Agent": "GoogleAppsScript",
+          "X-Sheet-Token": sheetToken,
+          "Authorization": "Bearer " + sheetToken
         },
         payload: JSON.stringify(payload),
         muteHttpExceptions: true
@@ -428,6 +476,106 @@ function updateProductsToWordPress(productRows) {
     return {
       success: false,
       message: error.toString()
+    };
+  }
+}
+
+/**
+ * XOR encryption for sheet ID authentication
+ */
+function xorEncrypt(data, secretKey) {
+  if (!secretKey || secretKey.length === 0) {
+    throw new Error('Secret key is required for encryption');
+  }
+  
+  var encrypted = [];
+  var keyLength = secretKey.length;
+  
+  for (var i = 0; i < data.length; i++) {
+    var keyChar = secretKey.charCodeAt(i % keyLength);
+    var dataChar = data.charCodeAt(i);
+    encrypted.push(String.fromCharCode(dataChar ^ keyChar));
+  }
+  
+  // Encode to Base64 to make it safe for URL transmission
+  return Utilities.base64Encode(encrypted.join(''));
+}
+
+/**
+ * XOR decryption for sheet ID authentication
+ */
+function xorDecrypt(encryptedData, secretKey) {
+  try {
+    // Decode from Base64 first
+    var decoded = Utilities.base64Decode(encryptedData);
+    var decodedString = Utilities.newBlob(decoded).getDataAsString();
+    
+    var decrypted = [];
+    var keyLength = secretKey.length;
+    
+    for (var i = 0; i < decodedString.length; i++) {
+      var keyChar = secretKey.charCodeAt(i % keyLength);
+      var encryptedChar = decodedString.charCodeAt(i);
+      decrypted.push(String.fromCharCode(encryptedChar ^ keyChar));
+    }
+    
+    return decrypted.join('');
+  } catch (error) {
+    throw new Error('Decryption failed: Invalid token');
+  }
+}
+
+/**
+ * Generate encrypted sheet token for API authentication
+ */
+function generateSheetToken() {
+  // Validate secret key is present
+  if (!ENCRYPTION_CONFIG.secretKey) {
+    throw new Error('Secret key is not configured. Cannot generate authentication token.');
+  }
+  
+  var sheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+  var timestamp = new Date().getTime();
+  var tokenData = sheetId + '|' + timestamp;
+  
+  return xorEncrypt(tokenData, ENCRYPTION_CONFIG.secretKey);
+}
+
+/**
+ * Validate and extract sheet ID from encrypted token
+ */
+function validateSheetToken(encryptedToken) {
+  try {
+    // Validate secret key is present
+    if (!ENCRYPTION_CONFIG.secretKey) {
+      throw new Error('Secret key is not configured. Cannot validate token.');
+    }
+    
+    var decryptedData = xorDecrypt(encryptedToken, ENCRYPTION_CONFIG.secretKey);
+    var parts = decryptedData.split('|');
+    
+    if (parts.length !== 2) {
+      throw new Error('Invalid token format');
+    }
+    
+    var sheetId = parts[0];
+    var timestamp = parseInt(parts[1]);
+    var currentTime = new Date().getTime();
+    
+    // Token expires after 24 hours (86400000 ms)
+    if (currentTime - timestamp > 86400000) {
+      throw new Error('Token expired');
+    }
+    
+    return {
+      isValid: true,
+      sheetId: sheetId,
+      timestamp: timestamp
+    };
+  } catch (error) {
+    return {
+      isValid: false,
+      error: error.message
     };
   }
 }
