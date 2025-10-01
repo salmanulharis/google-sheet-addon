@@ -9,7 +9,8 @@ var WP_API_CONFIG = {
   namespace: 'sheets-api/v1',
   endpoints: {
     getProducts: '/get_products',
-    updateProducts: '/update_products'
+    updateProducts: '/update_products',
+    testConnection: '/test_connection'
   }
 };
 
@@ -45,10 +46,6 @@ function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('WordPress Products')
     .addItem('Open Sidebar', 'showSidebar')
-    .addItem('Fetch Products', 'fetchProducts')
-    .addItem('Update Selected Products', 'updateSelectedProducts')
-    .addItem('Update All Products', 'updateAllProducts')
-    .addSeparator()
     .addItem('Settings', 'showSettings')
     .addToUi();
 }
@@ -499,6 +496,41 @@ function xorEncrypt(data, secretKey) {
   
   // Encode to Base64 to make it safe for URL transmission
   return Utilities.base64Encode(encrypted.join(''));
+}
+
+function testConnection() {
+  var config = getConfig();
+  if (!config.isConfigured) {
+    throw new Error('Please configure the WordPress API URL and secret key first in Settings.');
+  }
+  
+  // Validate secret key is present
+  validateSecretKey();
+  
+  // Generate encrypted sheet token for secure authentication
+  var sheetToken = generateSheetToken();
+
+  var response = UrlFetchApp.fetch(
+    config.baseUrl + '/wp-json/' + WP_API_CONFIG.namespace + WP_API_CONFIG.endpoints.testConnection,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        "ngrok-skip-browser-warning": "true",
+        "User-Agent": "GoogleAppsScript",
+        "X-Sheet-Token": sheetToken,
+        "Authorization": "Bearer " + sheetToken
+      },
+      muteHttpExceptions: true
+    }
+  );
+
+  if (response.getResponseCode() !== 200) {
+    var errorResponse = JSON.parse(response.getContentText());
+    throw new Error('API Error: ' + (errorResponse.message || response.getContentText()));
+  }
+
+  return { success: true, message: 'Connection successful' };
 }
 
 /**

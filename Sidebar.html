@@ -183,7 +183,7 @@
                 showStatus(result.success ? 'Connection successful!' : 'Connection failed: ' + result.message, result.success ? 'success' : 'error');
             }).withFailureHandler(function(error) {
                 showStatus('Connection failed: ' + error, 'error');
-            }).fetchProducts();
+            }).testConnection();
         }
         
         function showStatus(message, type) {
