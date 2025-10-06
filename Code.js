@@ -24,12 +24,11 @@ var ENCRYPTION_CONFIG = {
 var SHEET_CONFIG = {
   sheetName: 'Products',
   headers: [
-    'ID', 'Name', 'Description', 'Short Description', 'Product Type', 
-    'Price', 'Regular Price', 'Sale Price', 'Stock Quantity', 
-    'Stock Status', 'SKU', 'Categories', 'Tags', 'Featured Image', 'Last Updated'
+    'Product ID', 'Type', 'Parent ID', 'Name', 'SKU', 'Attributes', 
+    'Regular Price', 'Sale Price', 'Stock', 'Status'
   ],
-  keyColumn: 0, // ID column
-  lastUpdatedColumn: 14 // Last Updated column
+  keyColumn: 0, // Product ID column
+  lastUpdatedColumn: 9 // Status column (no longer using Last Updated)
 };
 
 /**
@@ -247,11 +246,11 @@ function getExistingProductData(sheet) {
   var existingData = {};
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    var productId = row[SHEET_CONFIG.keyColumn];
+    var productId = row[SHEET_CONFIG.keyColumn]; // Product ID column
     if (productId) {
       existingData[productId] = {
         rowIndex: i + 1,
-        lastUpdated: row[SHEET_CONFIG.lastUpdatedColumn] || ''
+        status: row[9] || '' // Status column
       };
     }
   }
@@ -274,21 +273,16 @@ function updateSheetWithProducts(sheet, products, existingData) {
   
   products.forEach(function(product) {
     var rowData = [
-      product.id,
-      product.name,
-      product.description,
-      product.short_description,
-      product.product_type,
-      product.price,
-      product.regular_price,
-      product.sale_price,
-      product.stock_quantity,
-      product.stock_status,
-      product.sku,
-      Array.isArray(product.categories) ? product.categories.join(', ') : '',
-      Array.isArray(product.tags) ? product.tags.join(', ') : '',
-      product.featured_image,
-      new Date().toISOString()
+      product.id,                                                    // Product ID
+      product.type || product.product_type || 'simple',            // Type
+      product.parent_id || '',                                      // Parent ID
+      product.name,                                                 // Name
+      product.sku,                                                  // SKU
+      product.attributes,                                          // Attributes
+      product.regular_price,                                        // Regular Price
+      product.sale_price,                                           // Sale Price
+      product.stock_quantity || product.stock,                     // Stock
+      product.status || product.stock_status || 'instock'          // Status
     ];
     
     newData.push(rowData);
@@ -308,9 +302,10 @@ function updateSheetWithProducts(sheet, products, existingData) {
       sheet.autoResizeColumn(i);
     }
 
-    var setSizeColumns = [3, 4]; // Name, Description, Short Description, Categories, Tags, Featured Image
+    // Set specific widths for certain columns
+    var setSizeColumns = [4, 6]; // Name and Attributes columns
     for (var i = 0; i < setSizeColumns.length; i++) {
-      sheet.setColumnWidth(setSizeColumns[i], 150);
+      sheet.setColumnWidth(setSizeColumns[i], 200);
     }
   }
   
@@ -403,16 +398,16 @@ function updateProductsToWordPress(productRows) {
     
     var productsData = productRows.map(function(row) {
       return {
-        id: row.data[0],
-        name: row.data[1],
-        description: row.data[2],
-        short_description: row.data[3],
-        price: row.data[5],
-        regular_price: row.data[6],
-        sale_price: row.data[7],
-        stock_quantity: row.data[8],
-        stock_status: row.data[9],
-        sku: row.data[10]
+        id: row.data[0],                    // Product ID
+        type: row.data[1],                  // Type
+        parent_id: row.data[2],             // Parent ID
+        name: row.data[3],                  // Name
+        sku: row.data[4],                   // SKU
+        attributes: row.data[5],            // Attributes (will need parsing on WordPress side)
+        regular_price: row.data[6],         // Regular Price
+        sale_price: row.data[7],            // Sale Price
+        stock_quantity: row.data[8],        // Stock
+        status: row.data[9]                 // Status
       };
     });
     
@@ -445,18 +440,6 @@ function updateProductsToWordPress(productRows) {
     }
     
     var result = JSON.parse(response.getContentText());
-    
-    // Update last updated timestamp for successfully updated rows
-    if (result.data && result.data.length > 0) {
-      var sheet = SpreadsheetApp.getActiveSheet();
-      var now = new Date().toISOString();
-      
-      productRows.forEach(function(row) {
-        if (result.data.includes(row.data[0])) {
-          sheet.getRange(row.rowIndex, SHEET_CONFIG.lastUpdatedColumn + 1).setValue(now);
-        }
-      });
-    }
     
     return {
       success: true,
