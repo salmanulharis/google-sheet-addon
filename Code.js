@@ -176,6 +176,9 @@ function fetchProducts() {
     
     updateSheetWithProducts(sheet, products, existingData);
     
+    // Store current product IDs for deletion tracking
+    storeCurrentProductIds();
+
     return {
       success: true,
       message: 'Successfully fetched ' + products.length + ' products',
@@ -317,7 +320,7 @@ function updateSheetWithProducts(sheet, products, existingData) {
 }
 
 /**
- * Updates selected products back to WordPress
+ * Updates selected products back to WordPress (with deletion detection)
  */
 function updateSelectedProducts() {
   var sheet = SpreadsheetApp.getActiveSheet();
@@ -328,11 +331,14 @@ function updateSelectedProducts() {
     throw new Error('Please select at least one product row to update.');
   }
   
-  return updateProductsToWordPress(selectedRows);
+  // Get deleted product IDs
+  var deletedIds = getDeletedProductIds();
+  
+  return updateProductsToWordPress(selectedRows, deletedIds);
 }
 
 /**
- * Updates all products back to WordPress
+ * Updates all products back to WordPress (with deletion detection)
  */
 function updateAllProducts() {
   var sheet = SpreadsheetApp.getActiveSheet();
@@ -342,7 +348,10 @@ function updateAllProducts() {
     throw new Error('No products found in the sheet. Please fetch products first.');
   }
   
-  return updateProductsToWordPress(allRows);
+  // Get deleted product IDs
+  var deletedIds = getDeletedProductIds();
+  
+  return updateProductsToWordPress(allRows, deletedIds);
 }
 
 /**
@@ -384,9 +393,9 @@ function getAllProductRows(sheet) {
 }
 
 /**
- * Updates products to WordPress via API
+ * Updates products to WordPress via API (including deletions)
  */
-function updateProductsToWordPress(productRows) {
+function updateProductsToWordPress(productRows, deletedIds) {
   try {
     var config = getConfig();
     if (!config.isConfigured) {
@@ -403,7 +412,7 @@ function updateProductsToWordPress(productRows) {
         parent_id: row.data[2],             // Parent ID
         name: row.data[3],                  // Name
         sku: row.data[4],                   // SKU
-        attributes: row.data[5],            // Attributes (will need parsing on WordPress side)
+        attributes: row.data[5],            // Attributes
         regular_price: row.data[6],         // Regular Price
         sale_price: row.data[7],            // Sale Price
         stock_quantity: row.data[8],        // Stock
@@ -415,7 +424,8 @@ function updateProductsToWordPress(productRows) {
     var sheetToken = generateSheetToken();
     
     var payload = {
-      products: productsData
+      products: productsData,
+      deleted_ids: deletedIds || []  // Include deleted product IDs
     };
     
     var response = UrlFetchApp.fetch(
@@ -437,6 +447,11 @@ function updateProductsToWordPress(productRows) {
     if (response.getResponseCode() !== 200) {
       var errorResponse = JSON.parse(response.getContentText());
       throw new Error('API Error: ' + (errorResponse.message || response.getContentText()));
+    } else {
+      // Clear stored IDs after successful update
+      PropertiesService.getDocumentProperties().deleteProperty('STORED_PRODUCT_IDS');
+      // trigger fetch products to refresh the sheet data
+      fetchProducts();
     }
     
     var result = JSON.parse(response.getContentText());
@@ -444,7 +459,8 @@ function updateProductsToWordPress(productRows) {
     return {
       success: true,
       message: result.message || 'Products updated successfully',
-      updatedCount: result.data ? result.data.length : 0
+      updatedCount: result.data.updated ? result.data.updated.length : 0,
+      deletedCount: result.data.deleted ? result.data.deleted.length : 0
     };
     
   } catch (error) {
@@ -596,4 +612,58 @@ function validateSheetToken(encryptedToken) {
  */
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+/**
+ * Stores current product IDs for deletion tracking
+ */
+function storeCurrentProductIds() {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var data = sheet.getDataRange().getValues();
+  var currentIds = [];
+  
+  // Skip header row and collect all product IDs
+  for (var i = 1; i < data.length; i++) {
+    var productId = data[i][SHEET_CONFIG.keyColumn]; // Product ID column (0)
+    if (productId) {
+      currentIds.push(productId.toString());
+    }
+  }
+  
+  // Store in PropertiesService for temporary storage
+  PropertiesService.getDocumentProperties().setProperty('STORED_PRODUCT_IDS', JSON.stringify(currentIds));
+  
+  return currentIds;
+}
+
+/**
+ * Detects deleted product IDs by comparing stored IDs with current sheet data
+ */
+function getDeletedProductIds() {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var data = sheet.getDataRange().getValues();
+  var currentIds = [];
+  
+  // Get current product IDs from sheet
+  for (var i = 1; i < data.length; i++) {
+    var productId = data[i][SHEET_CONFIG.keyColumn]; // Product ID column (0)
+    if (productId) {
+      currentIds.push(productId.toString());
+    }
+  }
+  
+  // Get stored product IDs
+  var storedIdsJson = PropertiesService.getDocumentProperties().getProperty('STORED_PRODUCT_IDS');
+  if (!storedIdsJson) {
+    return []; // No stored IDs, no deletions to detect
+  }
+  
+  var storedIds = JSON.parse(storedIdsJson);
+  
+  // Find deleted IDs (IDs that were stored but are no longer in current data)
+  var deletedIds = storedIds.filter(function(id) {
+    return currentIds.indexOf(id) === -1;
+  });
+  
+  return deletedIds;
 }
